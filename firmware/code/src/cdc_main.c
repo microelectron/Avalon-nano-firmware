@@ -37,6 +37,9 @@
 #include <NXP/crp.h>
 #endif
 #include "sha2.h"
+#include "protocol.h"
+#include "crc.h"
+
 
 #define A3233_TASK_LEN 88
 #define A3233_NONCE_LEN	4
@@ -48,9 +51,113 @@
 #define A3233_STAT_PROCICA				4
 #define A3233_STAT_RCVNONCE				5
 #define A3233_STAT_PROTECT				6
+#define A3233_STAT_PROCMM				7
+
 #ifdef __CODE_RED
 __CRP unsigned int CRP_WORD = CRP_NO_ISP;
 #endif
+
+//personal define
+#define MM_BUF_LEN						39
+
+
+static int g_module_id = 0;
+static uint8_t g_pkg[MM_BUF_LEN];
+static uint8_t g_act[MM_BUF_LEN];
+static uint8_t MM_VERSION[MM_VERSION_LEN] = "20140827";
+static unsigned int 	a3233_stat = A3233_STAT_WAITICA;
+
+
+static void encode_pkg(uint8_t *p, int type,char *buf)
+{
+//	uint32_t tmp;
+	uint16_t crc;
+	uint8_t *data;
+	memset(p, 0, AVA2_P_COUNT);		//p = g_act;
+	p[0] = AVA2_H1;
+	p[1] = AVA2_H2;
+
+	p[2] = type;
+	p[3] = 1;
+	p[4] = 1;
+	data = p + 5;
+	memcpy(data+28, &g_module_id, 4);
+	
+	switch(type)
+	{
+		case AVA2_P_ACKDETECT:
+			memcpy(data,&MM_VERSION,MM_VERSION_LEN);
+
+			break;
+		case AVA2_P_ACKMIDSTATE:
+
+			break;
+		case AVA2_P_NONCE:
+			memcpy(data,buf,4);
+			break;
+		
+		default:
+			break;
+	}
+
+	crc = crc16(data, AVA2_P_DATA_LEN);
+	p[AVA2_P_COUNT - 2] = crc & 0x00ff;
+	p[AVA2_P_COUNT - 1] = (crc & 0xff00) >> 8;
+}
+
+
+void UCOM_send_pkg(int type,unsigned char *buf)
+{
+	encode_pkg(g_act, type,buf);
+	UCOM_Write(g_act, AVA2_P_COUNT);
+}
+
+
+
+static int decode_pkg(uint8_t *p, uint8_t *icarusbuf)
+{
+	unsigned int expected_crc;
+	unsigned int actual_crc;
+	int idx;
+	int cnt;
+	
+	uint8_t *data = p + 5;
+	
+	idx = p[3];
+	cnt = p[4];
+
+	expected_crc = (p[AVA2_P_COUNT - 1] & 0xff) | ((p[AVA2_P_COUNT - 2] & 0xff) << 8);
+	actual_crc = crc16(data, AVA2_P_DATA_LEN);
+	actual_crc = crc16(data, AVA2_P_DATA_LEN);
+	/*
+	if(expected_crc != actual_crc) {
+		return 1;
+	}
+	*/
+	switch(p[2])
+	{
+		case AVA2_P_DETECT:
+			UCOM_send_pkg(AVA2_P_ACKDETECT,NULL);
+			a3233_stat = A3233_STAT_WAITICA;
+			break;
+
+		case AVA2_P_MIDSTATE:
+			memset(icarusbuf, 0, ICA_TASK_LEN);
+			memcpy(icarusbuf,data,32);
+			UCOM_send_pkg(AVA2_P_ACKMIDSTATE,NULL);
+			a3233_stat = A3233_STAT_WAITICA;
+			break;
+
+		case AVA2_P_DATA:
+			memcpy(icarusbuf+32,data,32);
+			a3233_stat = A3233_STAT_PROCICA;
+			break;
+
+		default:
+			break;
+	}
+	return 0;
+}
 
 /*****************************************************************************
  * Private types/enumerations/variables
@@ -60,15 +167,16 @@ __CRP unsigned int CRP_WORD = CRP_NO_ISP;
  * Public types/enumerations/variables
  ****************************************************************************/
 static unsigned char 	golden_ob[] = "\x46\x79\xba\x4e\xc9\x98\x76\xbf\x4b\xfe\x08\x60\x82\xb4\x00\x25\x4d\xf6\xc3\x56\x45\x14\x71\x13\x9a\x3a\xfa\x71\xe4\x8f\x54\x4a\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x87\x32\x0b\x1a\x14\x26\x67\x4f\x2f\xa7\x22\xce";
-static unsigned int 	a3233_stat = A3233_STAT_WAITICA;
 
 /*****************************************************************************
  * Private functions
  ****************************************************************************/
 
+
 /*****************************************************************************
  * Public functions
  ****************************************************************************/
+
 
 /**
  * @brief	main routine for blinky example
@@ -78,6 +186,8 @@ int main(void)
 {
 	uint8_t 		icarus_buf[ICA_TASK_LEN];
 	unsigned int	icarus_buflen = 0;
+	uint8_t 		mm_buffer[MM_BUF_LEN];
+	unsigned int 	mm_buffer_len = 0;
 	unsigned char 	work_buf[A3233_TASK_LEN];
 	unsigned char	nonce_buf[A3233_NONCE_LEN];
 	unsigned int	nonce_buflen = 0;
@@ -98,8 +208,8 @@ int main(void)
 	while (1) {
 		switch (a3233_stat) {
 		case A3233_STAT_WAITICA:
-			icarus_buflen = UCOM_Read_Cnt();
-			if (icarus_buflen > 0) {
+			mm_buffer_len = UCOM_Read_Cnt();
+			if (mm_buffer_len > 0) {
 				timestart = FALSE;
 				AVALON_TMR_Kill(A3233_TIMER_TIMEOUT);
 				a3233_stat = A3233_STAT_CHKICA;
@@ -121,8 +231,8 @@ int main(void)
 
 		case A3233_STAT_IDLE:
 			AVALON_LED_Rgb(AVALON_LED_GREEN);
-			icarus_buflen = UCOM_Read_Cnt();
-			if (icarus_buflen > 0) {
+			mm_buffer_len = UCOM_Read_Cnt();
+			if (mm_buffer_len > 0) {
 				a3233_stat = A3233_STAT_CHKICA;
 			}
 
@@ -139,11 +249,11 @@ int main(void)
 				break;
 			}
 
-			icarus_buflen = UCOM_Read_Cnt();
-			if (icarus_buflen >= ICA_TASK_LEN) {
+			mm_buffer_len = UCOM_Read_Cnt();
+			if (mm_buffer_len >= MM_BUF_LEN) {
 				timestart = FALSE;
 				AVALON_TMR_Kill(A3233_TIMER_TIMEOUT);
-				a3233_stat = A3233_STAT_PROCICA;
+				a3233_stat = A3233_STAT_PROCMM;
 				break;
 			}
 
@@ -161,6 +271,12 @@ int main(void)
 			}
 			break;
 
+		case A3233_STAT_PROCMM:
+			memset(mm_buffer, 0, MM_BUF_LEN);
+			UCOM_Read(mm_buffer, MM_BUF_LEN);
+			decode_pkg(mm_buffer,icarus_buf);
+			break;
+				
 		case A3233_STAT_PROTECT:
 			if (!AVALON_A3233_IsTooHot()) {
 				timestart = FALSE;
@@ -184,8 +300,6 @@ int main(void)
 			break;
 
 		case A3233_STAT_PROCICA:
-			memset(icarus_buf, 0, ICA_TASK_LEN);
-			UCOM_Read(icarus_buf, ICA_TASK_LEN);
 			memset(work_buf, 0, A3233_TASK_LEN);
 
 			if (!memcmp(golden_ob, icarus_buf, ICA_TASK_LEN))
@@ -232,8 +346,10 @@ int main(void)
 				nonce_value = ((nonce_value >> 24) | (nonce_value << 24) | ((nonce_value >> 8) & 0xff00) | ((nonce_value << 8) & 0xff0000));
 				nonce_value -= 0x1000;
 				UNPACK32(nonce_value, nonce_buf);
-
-				UCOM_Write(nonce_buf, A3233_NONCE_LEN);
+				//memset(g_pkg,0,MM_BUF_LEN);
+				//memcpy(g_pkg+5,&nonce_buf,4);
+				UCOM_send_pkg(AVA2_P_NONCE, nonce_buf);
+				//UCOM_Write(nonce_buf, A3233_NONCE_LEN);
 
 #ifdef A3233_FREQ_DEBUG
 				{
