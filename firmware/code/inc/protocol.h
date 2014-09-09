@@ -43,14 +43,4 @@
 #define AVA2_P_ACKMIDSTATE	29
 
 #endif	/* _PROTOCOL_H_ */
-/*######################################################*/
-struct avalong2_pkg {
-    uint8_t head[2];
-    uint8_t type;
-    uint8_t idx;
-    uint8_t cnt;
-    uint8_t data[32];
-    uint8_t crc[2];
-};
-
 
