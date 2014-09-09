@@ -20,11 +20,11 @@ parser.add_option("-S", "--static", dest="is_static", default="0", help="Static 
 if options.chip_type == '2':
 	asic_cnt = 7
 	miner_cnt = 10
-	ser = Serial(options.serial_port, 115200, 8, timeout=2)
+	ser = Serial(options.serial_port, 115200, 8, timeout=1)
 else:
 	asic_cnt = 10
 	miner_cnt = 5
-	ser = Serial(options.serial_port, 115200, 8, timeout=8)
+	ser = Serial(options.serial_port, 115200, 8, timeout=1)
 
 TYPE_TEST = "14"
 TYPE_DETECT = "0a"
@@ -58,9 +58,14 @@ def CRC16(message):
 	return reg
 
 def mm_package(cmd_type, module_id, pdata = '0'):
-	data = pdata.ljust(60, '0') + module_id.rjust(4, '0')
+        if module_id == None:
+            data = pdata.ljust(60, '0')
+        else:
+            data = pdata.ljust(60, '0') + module_id.rjust(4, '0')
 	crc = CRC16(data.decode("hex"))
-	return "4156" + cmd_type + "0101" + data + hex(crc)[2:].rjust(4, '0')
+	#return int("4156" + cmd_type + "0101" + data + hex(crc)[2:].rjust(4, '0'), 16)
+	#return str(int("4156" + cmd_type + "0101" + data + hex(crc)[2:].rjust(4, '0'), 16))
+        return "4156" + cmd_type + "0101" + data + hex(crc)[2:].rjust(4, '0')
 
 def run_test(cmd):
 	ser.write(cmd.decode('hex'))
@@ -82,12 +87,15 @@ def run_test(cmd):
 def run_detect(cmd):
 	#version
 	ser.write(cmd.decode('hex'))
-	res_s = ser.read(39)
+        print " send_detect = " + cmd
+        res_s = ser.read(39)
 	if not res_s:
 		print("ver:Something is wrong or modular id not correct")
 	else :
-		print("ver:" + res_s[5:20])
-
+		#print("ver:" + res_s[5:20])
+                print "ACKDETECT = " + binascii.hexlify(res_s)
+                #print("res_s:[0:5]" + res_s[0:5])
+                #print("res_s:[33:38]" + res_s[33:38])
 
 def run_require(cmd):
 	ser.write(cmd.decode('hex'))
@@ -116,14 +124,33 @@ def run_require(cmd):
 		print(result)
 
 def run_avalonnano_test():
-    midstate = mm_package(TYPE_MIDSTAT, options.module_id, "d8f8ef6712146495c44192c07145fd6d974bf4bb8f41371d65c90d1e9cb18a17")
-    ser.write(midstate)
+    midstate = mm_package(TYPE_MIDSTAT, None, "d8f8ef6712146495c44192c07145fd6d974bf4bb8f41371d65c90d1e9cb18a17")
+    print " midstate = " + midstate
+    ser.write(midstate.decode('hex'))
     res_s = ser.read(39)
-    print "MIDSTATE = " + res_s
-    data = mm_package(TYPE_DATA, options.module_id, "0000000000000000000000000000000000000000087e051a885170504ac1d001")
-    ser.write(data)
-    res_s = ser.read(39)
-    print "DATA = " + res_s
+    print " ACKMIDSTATE = " + binascii.hexlify(res_s)
+    data = mm_package(TYPE_DATA, None, "0000000000000000000000000000000000000000087e051a885170504ac1d001")
+    print " data = " + data
+    ser.write(data.decode('hex'))
+    res_s = ser.read(32)
+    print " icarus_buf_hex = " + binascii.hexlify(res_s)
+    res_s = ser.read(32)
+    print " icarus_buf_32_hex = " + binascii.hexlify(res_s)
+
+    res_s = ser.read(32)
+    print " icarus_buf_hex = " + binascii.hexlify(res_s)
+    res_s = ser.read(32)
+    print " icarus_buf_32_hex = " + binascii.hexlify(res_s)
+    #print " icarus_buf = " + res_s
+    #res_s = ser.read(32)
+    #print " icarus_buf+32 = " + res_s
+    #res_s = ser.read(20)
+    #print " debug_nonce = " + res_s
+    #res_s = ser.read(19)
+    #print " debug_receive_nonce = " + res_s
+
+    #res_s = ser.read(4)
+    #print " nonce = " + res_s
 
 def statics():
     start = time.time()
@@ -138,7 +165,7 @@ while (1):
             statics()
             break
         else:
-            run_detect(mm_package(TYPE_DETECT, options.module_id))
+            #run_detect(mm_package(TYPE_DETECT, options.module_id))
             run_avalonnano_test()
             #run_require(mm_package(TYPE_REQUIRE, options.module_id))
             #run_test(mm_package(TYPE_TEST, options.module_id))
