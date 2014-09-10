@@ -57,70 +57,57 @@
 __CRP unsigned int CRP_WORD = CRP_NO_ISP;
 #endif
 
-//personal define
 #define MM_BUF_LEN						39
 
+static uint8_t ret_pkg[MM_BUF_LEN];
 
-static int g_module_id = 0;
-static uint8_t g_pkg[MM_BUF_LEN];
-static uint8_t g_act[MM_BUF_LEN];
 static uint8_t MM_VERSION[MM_VERSION_LEN] = "20140827";
 static unsigned int 	a3233_stat = A3233_STAT_WAITICA;
 
-
-static void encode_pkg(uint8_t *p, int type,char *buf)
+static int UCOM_send_pkg(uint8_t *p,int type,unsigned char *buf)
 {
-//	uint32_t tmp;
-	uint16_t crc;
-	uint8_t *data;
-	memset(p, 0, AVA2_P_COUNT);		//p = g_act;
-	p[0] = AVA2_H1;
-	p[1] = AVA2_H2;
-
-	p[2] = type;
-	p[3] = 1;
-	p[4] = 1;
-	data = p + 5;
-	memcpy(data+28, &g_module_id, 4);
 	
-	switch(type)
-	{
-		case AVA2_P_ACKDETECT:
-			memcpy(data,&MM_VERSION,MM_VERSION_LEN);
-
-			break;
-		case AVA2_P_ACKMIDSTATE:
-
-			break;
-		case AVA2_P_NONCE:
-			memcpy(data,buf,4);
-			break;
+		uint16_t crc;
+		memset(p, 0, AVA2_P_COUNT);
+		p[0] = AVA2_H1;
+		p[1] = AVA2_H2;
+	
+		p[2] = type;
+		p[3] = 1;
+		p[4] = 1;
 		
-		default:
-			break;
-	}
-
-	crc = crc16(data, AVA2_P_DATA_LEN);
-	p[AVA2_P_COUNT - 2] = crc & 0x00ff;
-	p[AVA2_P_COUNT - 1] = (crc & 0xff00) >> 8;
-}
-
-
-void UCOM_send_pkg(int type,unsigned char *buf)
-{
-	encode_pkg(g_act, type,buf);
-	UCOM_Write(g_act, AVA2_P_COUNT);
+		switch(type)
+		{
+			case AVA2_P_ACKDETECT:
+				memcpy(p+5,&MM_VERSION,MM_VERSION_LEN);
+				break;
+			case AVA2_P_ACKMIDSTATE:
+				break;
+			case AVA2_P_NONCE:
+				memcpy(p+5,buf,4);
+				break;
+			
+			default:
+				a3233_stat = A3233_STAT_WAITICA;
+				break;
+		}
+		crc = crc16(p+5, AVA2_P_DATA_LEN);
+		p[AVA2_P_COUNT - 2] = crc & 0x00ff;
+		p[AVA2_P_COUNT - 1] = (crc & 0xff00) >> 8;
+		UCOM_Write(p,MM_BUF_LEN);
+		return 0;
 }
 
 
 
 static int decode_pkg(uint8_t *p, uint8_t *icarusbuf)
 {
+	unsigned char   package_error[] = "Illegal data package";
 	unsigned int expected_crc;
 	unsigned int actual_crc;
 	int idx;
 	int cnt;
-	
+	int ret;
 	uint8_t *data = p + 5;
 	
 	idx = p[3];
@@ -137,14 +124,16 @@ static int decode_pkg(uint8_t *p, uint8_t *icarusbuf)
 	switch(p[2])
 	{
 		case AVA2_P_DETECT:
-			UCOM_send_pkg(AVA2_P_ACKDETECT,NULL);
-			a3233_stat = A3233_STAT_WAITICA;
+			//ret = UCOM_send_pkg(ret_pkg,AVA2_P_ACKDETECT,NULL);
+			//if(0 != ret) return 1;
+			//a3233_stat = A3233_STAT_WAITICA;
 			break;
 
 		case AVA2_P_MIDSTATE:
 			memset(icarusbuf, 0, ICA_TASK_LEN);
 			memcpy(icarusbuf,data,32);
-			UCOM_send_pkg(AVA2_P_ACKMIDSTATE,NULL);
+			ret = UCOM_send_pkg(ret_pkg,AVA2_P_ACKMIDSTATE,NULL);
+			//if(0 != ret) return 2;
 			a3233_stat = A3233_STAT_WAITICA;
 			break;
 
@@ -154,6 +143,8 @@ static int decode_pkg(uint8_t *p, uint8_t *icarusbuf)
 			break;
 
 		default:
+			//UCOM_Write(package_error,sizeof(package_error));		
+			a3233_stat = A3233_STAT_WAITICA;
 			break;
 	}
 	return 0;
@@ -193,6 +184,7 @@ int main(void)
 	unsigned int	nonce_buflen = 0;
 	unsigned int	last_freq = 0;
 	uint32_t 		nonce_value = 0;
+	unsigned int 	ret;
 	Bool			isgoldenob = FALSE;
 	Bool			timestart = FALSE;
 
@@ -230,7 +222,6 @@ int main(void)
 			break;
 
 		case A3233_STAT_IDLE:
-			AVALON_LED_Rgb(AVALON_LED_GREEN);
 			mm_buffer_len = UCOM_Read_Cnt();
 			if (mm_buffer_len > 0) {
 				a3233_stat = A3233_STAT_CHKICA;
@@ -271,10 +262,10 @@ int main(void)
 			}
 			break;
 
-		case A3233_STAT_PROCMM:
+		case A3233_STAT_PROCMM:		
 			memset(mm_buffer, 0, MM_BUF_LEN);
 			UCOM_Read(mm_buffer, MM_BUF_LEN);
-			decode_pkg(mm_buffer,icarus_buf);
+			ret = decode_pkg(mm_buffer,icarus_buf);
 			break;
 				
 		case A3233_STAT_PROTECT:
@@ -301,12 +292,19 @@ int main(void)
 
 		case A3233_STAT_PROCICA:
 			memset(work_buf, 0, A3233_TASK_LEN);
-
+			
 			if (!memcmp(golden_ob, icarus_buf, ICA_TASK_LEN))
 				isgoldenob = TRUE;
 			else
 				isgoldenob = FALSE;
-
+			
+			
+			UCOM_Write(icarus_buf,32);
+			UCOM_Write(icarus_buf+32,32);
+			
+			a3233_stat = A3233_STAT_WAITICA;
+			break;
+			
 			data_convert(icarus_buf);
 			data_pkg(icarus_buf, work_buf);
 
@@ -346,10 +344,8 @@ int main(void)
 				nonce_value = ((nonce_value >> 24) | (nonce_value << 24) | ((nonce_value >> 8) & 0xff00) | ((nonce_value << 8) & 0xff0000));
 				nonce_value -= 0x1000;
 				UNPACK32(nonce_value, nonce_buf);
-				//memset(g_pkg,0,MM_BUF_LEN);
-				//memcpy(g_pkg+5,&nonce_buf,4);
-				UCOM_send_pkg(AVA2_P_NONCE, nonce_buf);
-				//UCOM_Write(nonce_buf, A3233_NONCE_LEN);
+				UCOM_send_pkg(ret_pkg,AVA2_P_NONCE, nonce_buf);
+				
 
 #ifdef A3233_FREQ_DEBUG
 				{
