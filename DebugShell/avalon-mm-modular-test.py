@@ -132,25 +132,15 @@ def run_avalonnano_test():
     data = mm_package(TYPE_DATA, None, "0000000000000000000000000000000000000000087e051a885170504ac1d001")
     print " data = " + data
     ser.write(data.decode('hex'))
-    res_s = ser.read(32)
+    res_s = ser.read(39)
     print " icarus_buf_hex = " + binascii.hexlify(res_s)
     res_s = ser.read(32)
     print " icarus_buf_32_hex = " + binascii.hexlify(res_s)
 
-    res_s = ser.read(32)
-    print " icarus_buf_hex = " + binascii.hexlify(res_s)
-    res_s = ser.read(32)
-    print " icarus_buf_32_hex = " + binascii.hexlify(res_s)
-    #print " icarus_buf = " + res_s
     #res_s = ser.read(32)
-    #print " icarus_buf+32 = " + res_s
-    #res_s = ser.read(20)
-    #print " debug_nonce = " + res_s
-    #res_s = ser.read(19)
-    #print " debug_receive_nonce = " + res_s
-
-    #res_s = ser.read(4)
-    #print " nonce = " + res_s
+    #print " icarus_buf_hex = " + binascii.hexlify(res_s)
+    #res_s = ser.read(32)
+    #print " icarus_buf_32_hex = " + binascii.hexlify(res_s)
 
 def statics():
     start = time.time()
