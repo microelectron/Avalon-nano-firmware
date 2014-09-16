@@ -10,7 +10,7 @@
 #define _PROTOCOL_H_
 
 /* Avalon2 protocol package type */
-#define MM_VERSION_LEN	15
+#define MM_VERSION_LEN	8
 #define AVA2_H1	'A'
 #define AVA2_H2	'V'
 
@@ -41,6 +41,9 @@
 #define AVA2_P_MIDSTATE		27
 #define AVA2_P_DATA			28
 #define AVA2_P_ACKMIDSTATE	29
+#define AVA2_P_ACKDATA		30
+#define AVA2_P_CRCERROR		31
 
 #endif	/* _PROTOCOL_H_ */
+
 

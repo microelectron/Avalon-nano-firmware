@@ -154,7 +154,7 @@ while (1):
             break
         else:
             run_detect()
-            run_avalonnano_test()
+            #run_avalonnano_test()
             #run_require(mm_package(TYPE_REQUIRE, options.module_id))
             #run_test(mm_package(TYPE_TEST, options.module_id))
             raw_input('Press enter to continue:')

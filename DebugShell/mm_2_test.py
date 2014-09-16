@@ -68,7 +68,7 @@ def mm_package(cmd_type, module_id, pdata = '0'):
         return "4156" + cmd_type + "0101" + data + hex(crc)[2:].rjust(4, '0')
 
 def run_test(cmd):
-	ser.write(cmd.decode('hex'))
+        ser.write(cmd.decode('hex'))
 	for count in range(0, miner_cnt):
 		res_s = ser.read(39)
 		if not res_s:
@@ -84,18 +84,18 @@ def run_test(cmd):
 				sys.stdout.flush()
 			print("")
 
-def run_detect(cmd):
+def run_detect():
 	#version
-	ser.write(cmd.decode('hex'))
-        print " send_detect = " + cmd
+        detect_pkg = mm_package(TYPE_DETECT, None, "d8f8ef6712146495c44192c07145fd6d974bf4bb8f41371d65c90d1e9cb18a17")
+	ser.write(detect_pkg.decode('hex'))
+        print " send_detect = " + detect_pkg
         res_s = ser.read(39)
 	if not res_s:
 		print("ver:Something is wrong or modular id not correct")
+                print "wrong ACKDETECT_25(4156190101) = " + binascii.hexlify(res_s)
 	else :
 		#print("ver:" + res_s[5:20])
                 print "ACKDETECT_25(4156190101) = " + binascii.hexlify(res_s)
-                #print("res_s:[0:5]" + res_s[0:5])
-                #print("res_s:[33:38]" + res_s[33:38])
 
 def run_require(cmd):
 	ser.write(cmd.decode('hex'))
@@ -127,36 +127,11 @@ def run_avalonnano_test():
     midstate = mm_package(TYPE_MIDSTAT, None, "d8f8ef6712146495c44192c07145fd6d974bf4bb8f41371d65c90d1e9cb18a17")
     print " midstate = " + midstate
     ser.write(midstate.decode('hex'))
-    res_s = ser.read(39)
-    print " ACKMIDSTATE_29(41561d0101) = " + binascii.hexlify(res_s)
-    #print " icarus_buf_hex = " + binascii.hexlify(res_s)
     data = mm_package(TYPE_DATA, None, "0000000000000000000000000000000000000000087e051a885170504ac1d001")
     print " data = " + data
     ser.write(data.decode('hex'))
-    res_s = ser.read(32)
-    print " icarus_buf_hex = " + binascii.hexlify(res_s)
-    res_s = ser.read(32)
-    print " icarus_buf_32_hex = " + binascii.hexlify(res_s)
-
-    #res_s = ser.read(39)
-    #print " NONCE(4156170101) = " + binascii.hexlify(res_s)
-    #res_s = ser.read(32)
-    #print " icarus_buf_32_hex = " + binascii.hexlify(res_s)
-
-def run_mm_data():
-    midstate = mm_package(TYPE_MIDSTAT, None, "d8f8ef6712146495c44192c07145fd6d974bf4bb8f41371d65c90d1e9cb18a17")
-    print " midstate = " + midstate
-    ser.write(midstate.decode('hex'))
     res_s = ser.read(39)
-    print " ACKMIDSTATE_29(41561d0101) = " + binascii.hexlify(res_s)
-    #print " icarus_buf_hex = " + binascii.hexlify(res_s)
-    data = mm_package(TYPE_DATA, None, "0000000000000000000000000000000000000000087e051a895170504ac1d001")
-    print " data = " + data
-    ser.write(data.decode('hex'))
-    res_s = ser.read(32)
-    print " icarus_buf_hex = " + binascii.hexlify(res_s)
-    res_s = ser.read(32)
-    print " icarus_buf_32_hex = " + binascii.hexlify(res_s)
+    print " nonce(4156170101) = " + binascii.hexlify(res_s)
 
     #res_s = ser.read(39)
     #print " NONCE(4156170101) = " + binascii.hexlify(res_s)
@@ -176,24 +151,8 @@ while (1):
             statics()
             break
         else:
-            #run_detect(mm_package(TYPE_DETECT, options.module_id))
-            print "....................................................."
+            #run_detect()
             run_avalonnano_test()
-            print "....................................................."
-            run_mm_data()
-            print "....................................................."
-            run_avalonnano_test()
-            print "....................................................."
-            run_mm_data()
-            print "....................................................."
-            run_avalonnano_test()
-            print "....................................................."
-            run_mm_data()
-            print "....................................................."
-            run_avalonnano_test()
-            print "....................................................."
-            run_mm_data()
-            raw_input('Press enter to continue:')
-
             #run_require(mm_package(TYPE_REQUIRE, options.module_id))
             #run_test(mm_package(TYPE_TEST, options.module_id))
+            raw_input('Press enter to continue:')

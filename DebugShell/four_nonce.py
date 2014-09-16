@@ -129,10 +129,11 @@ def run_avalonnano_test():
     ser.write(midstate.decode('hex'))
     #res_s = ser.read(39)
     #print " ACKMIDSTATE_29(41561d0101) = " + binascii.hexlify(res_s)
+    print " ACKMIDSTATE_29(41561d0101) = "
     data = mm_package(TYPE_DATA, None, "0000000000000000000000000000000000000000087e051a885170504ac1d001")
     print " data = " + data
     ser.write(data.decode('hex'))
-    res_s = ser.read(39)
+    res_s = ser.read(4)
     print " nonce(4156170101) = " + binascii.hexlify(res_s)
 
     #res_s = ser.read(39)
@@ -153,7 +154,7 @@ while (1):
             statics()
             break
         else:
-            run_detect()
+            #run_detect()
             run_avalonnano_test()
             #run_require(mm_package(TYPE_REQUIRE, options.module_id))
             #run_test(mm_package(TYPE_TEST, options.module_id))
