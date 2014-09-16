@@ -77,11 +77,8 @@ static int avalon_init_pkg(uint8_t *p,int type)
 	{
 
 			uint16_t crc;
-			//uint8_t *data;
-			//memset(p, 0, AVA2_P_COUNT);
 			p[0] = AVA2_H1;
 			p[1] = AVA2_H2;
-			//data = p + 5;
 
 			p[2] = type;
 			p[3] = 1;
@@ -133,7 +130,6 @@ int main(void)
 	Bool			isgoldenob = FALSE;
 	Bool			timestart = FALSE;
 	int				tmp;
-	//personal add
 	uint8_t ret_pkg[AVA2_P_COUNT];
 
 
@@ -226,7 +222,6 @@ int main(void)
 
 			if (!timestart) {
 				AVALON_TMR_Set(A3233_TIMER_TIMEOUT, 10000, NULL);
-				//AVALON_LED_Rgb(AVALON_LED_BLACK);
 				timestart = TRUE;
 			}
 
@@ -253,7 +248,6 @@ int main(void)
 					memcpy(icarus_buf,mm_buffer+5,32);
 					memset(ret_pkg,0,AVA2_P_COUNT);
 					avalon_init_pkg(ret_pkg,AVA2_P_ACKMIDSTATE);
-					//UCOM_Write(ret_pkg,AVA2_P_COUNT);
 					a3233_stat = A3233_STAT_WAITICA;
 					break;
 
@@ -325,7 +319,6 @@ int main(void)
 				memcpy(ret_pkg+21,nonce_buf,4);
 				avalon_init_pkg(ret_pkg,AVA2_P_NONCE);
 				UCOM_Write(ret_pkg, AVA2_P_COUNT);
-				//UCOM_Write(nonce_buf, A3233_NONCE_LEN);
 
 #ifdef A3233_FREQ_DEBUG
 				{
